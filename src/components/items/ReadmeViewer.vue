@@ -1,7 +1,10 @@
 <template>
   <div class="readme-viewer">
     <div v-if="readmeContent" v-html="readmeContent" class="readme-content"></div>
-    <div v-else-if="desc" class="detail-desc">{{ showDescTitle ? $t('readmeViewer.descTitle') + '\n' + desc : desc }}</div>
+    <div v-else-if="desc" class="detail-desc">{{
+        showDescTitle ? $t('readmeViewer.descTitle') + '\n' + desc : desc
+      }}
+    </div>
     <div v-else-if="!isHttpUrl && showNoDesc" class="readme-empty">{{ $t('readmeViewer.noDesc') }}</div>
   </div>
 </template>
@@ -12,11 +15,12 @@ import MarkdownIt from 'markdown-it';
 import markdownItAnchor from 'markdown-it-anchor';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github.css';
-import { getWebPath, getRepoPath, getMirrorPath, getMirror } from '@/utils/basePaths.js';
-import { useI18n } from 'vue-i18n';
-import { onMounted, onUnmounted, nextTick } from 'vue';
+import {getWebPath, getRepoPath, getMirrorPath, getMirror} from '@/utils/basePaths.js';
+import {useI18n} from 'vue-i18n';
+import {onMounted, onUnmounted, nextTick} from 'vue';
 import mermaid from 'mermaid';
-const { t } = useI18n();
+
+const {t} = useI18n();
 
 const props = defineProps({
   path: {
@@ -62,15 +66,16 @@ const md = new MarkdownIt({
   highlight: function (str, lang) {
     // 特殊处理 mermaid：不进行代码高亮，直接返回原始内容
     if (lang && lang.toLowerCase() === 'mermaid') {
-      // 直接返回 mermaid 需要的结构，不用 <pre><code>
-      return `<div class="mermaid">${str.trim()}</div>`;
+      // 使用 escapeHtml 防止 XSS，mermaid.run() 会正确解析
+      return `<div class="mermaid">${md.utils.escapeHtml(str.trim())}</div>`;
     }
     if (lang && hljs.getLanguage(lang)) {
       try {
         return '<pre class="hljs"><code>' +
-          hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
-          '</code></pre>';
-      } catch (__) { }
+            hljs.highlight(str, {language: lang, ignoreIllegals: true}).value +
+            '</code></pre>';
+      } catch (__) {
+      }
     }
     return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>';
   }
@@ -78,24 +83,26 @@ const md = new MarkdownIt({
   level: [1, 2, 3, 4, 5, 6]
 });
 
-// 全局只有一个 observer
-let mermaidObserver = null;
-
+// 组件实例级别的 observer
+const mermaidObserver = ref(null);
 const initMermaid = async () => {
   // 初始化 mermaid 配置
   mermaid.initialize({
     startOnLoad: false,
     theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default',
-    securityLevel: 'loose',
-    flowchart: { useMaxWidth: true },
-    sequence: { useMaxWidth: true },
+    // securityLevel: 'loose',
+    securityLevel: 'strict',
+    flowchart: {useMaxWidth: true},
+    sequence: {useMaxWidth: true},
   });
 
-  // 如果已有 observer，先断开
-  if (mermaidObserver) {
-    mermaidObserver.disconnect();
+  // // 如果已有 observer，先断开
+  // if (mermaidObserver) {
+  //   mermaidObserver.disconnect();
+  // }
+  if (mermaidObserver.value) {
+    mermaidObserver.value.disconnect();
   }
-
   // 等待 .readme-content 真正存在
   await nextTick();
 
@@ -103,7 +110,7 @@ const initMermaid = async () => {
   if (!container) return;
 
   // 创建 observer 监听整个 viewer（因为 .readme-content 是 v-if，可能反复创建销毁）
-  mermaidObserver = new MutationObserver(async () => {
+  mermaidObserver.value = new MutationObserver(async () => {
     const mermaidEls = container.querySelectorAll('.mermaid:not([data-processed])');
     if (mermaidEls.length > 0) {
       try {
@@ -118,7 +125,7 @@ const initMermaid = async () => {
     }
   });
 
-  mermaidObserver.observe(container, {
+  mermaidObserver.value.observe(container, {
     childList: true,
     subtree: true,
   });
@@ -127,7 +134,7 @@ const initMermaid = async () => {
   const initialEls = container.querySelectorAll('.mermaid:not([data-processed])');
   if (initialEls.length > 0) {
     try {
-      await mermaid.run({ nodes: initialEls });
+      await mermaid.run({nodes: initialEls});
       initialEls.forEach(el => el.setAttribute('data-processed', 'true'));
     } catch (err) {
       console.warn('Mermaid initial render error:', err);
@@ -167,7 +174,7 @@ function processFootnotes(rawMarkdown) {
   const keptLines = [];
 
   // 提取脚注定义
-  for (let i = 0; i < lines.length; ) {
+  for (let i = 0; i < lines.length;) {
     const defMatch = lines[i].match(/^\[\^([^\]]+)\]:\s*(.*)$/);
     if (defMatch) {
       const id = defMatch[1];
@@ -238,12 +245,12 @@ md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
 
     // 更精确的相对路径判断：排除明显不是路径的情况
     const isActuallyRelativePath = isRelativePath &&
-      !href.includes('://') &&
-      !href.includes('mailto:') &&
-      !href.includes('tel:') &&
-      !href.includes('javascript:') &&
-      !isValidHttpLink && // 使用已经验证的HTTP链接检查
-      !/\.(png|jpg|jpeg|gif|webp|svg|ico|bmp|tiff)$/i.test(href); // 排除图片文件路径
+        !href.includes('://') &&
+        !href.includes('mailto:') &&
+        !href.includes('tel:') &&
+        !href.includes('javascript:') &&
+        !isValidHttpLink && // 使用已经验证的HTTP链接检查
+        !/\.(png|jpg|jpeg|gif|webp|svg|ico|bmp|tiff)$/i.test(href); // 排除图片文件路径
 
     if (isValidHttpLink) {
       token.attrPush(['target', '_blank']);
@@ -288,9 +295,9 @@ md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
       }
       // 移除路径中的多余斜杠和点
       targetPath = targetPath
-        .replace(/\/+/g, '/')
-        .replace(/^\/|\/$/g, '')
-        .replace(/\/\.(?=\/|$)/g, '');
+          .replace(/\/+/g, '/')
+          .replace(/^\/|\/$/g, '')
+          .replace(/\/\.(?=\/|$)/g, '');
 
       // 判断是否为文件（有扩展名）还是目录
       const isFile = /\.[a-zA-Z0-9]+$/.test(targetPath);
@@ -347,7 +354,7 @@ const fetchAndRenderReadme = async (path, markdownContent = '') => {
     }
     if (isReadme404(path)) {
       readmeContent.value = '';
-      emit('loaded', { status: '404' });
+      emit('loaded', {status: '404'});
       emit('hasContent', false);
       return;
     }
@@ -376,11 +383,11 @@ const fetchAndRenderReadme = async (path, markdownContent = '') => {
         readmeContent.value = '';
         if (fetchError.name === 'AbortError') {
           loadError.value = t('readmeViewer.loadTimeout');
-          emit('loaded', { status: 'error', message: t('readmeViewer.loadTimeout') });
+          emit('loaded', {status: 'error', message: t('readmeViewer.loadTimeout')});
           emit('error', t('readmeViewer.loadTimeout'));
         } else {
           loadError.value = t('readmeViewer.loadFailed');
-          emit('loaded', { status: 'error', message: t('readmeViewer.loadFailed') });
+          emit('loaded', {status: 'error', message: t('readmeViewer.loadFailed')});
           emit('error', t('readmeViewer.loadFailed'));
         }
         emit('hasContent', false);
@@ -389,7 +396,7 @@ const fetchAndRenderReadme = async (path, markdownContent = '') => {
       }
       if (markdown === '404') {
         readmeContent.value = '';
-        emit('loaded', { status: '404' });
+        emit('loaded', {status: '404'});
         emit('hasContent', false);
         isLoading.value = false;
         return;
@@ -467,7 +474,7 @@ const fetchAndRenderReadme = async (path, markdownContent = '') => {
       for (const [, data] of resourceMap.entries()) {
         if (!data.base64) continue;
 
-        for (const { original, replacement } of data.replacements) {
+        for (const {original, replacement} of data.replacements) {
           html = html.replace(
               original,
               replacement(data.base64, data.mime)
@@ -476,7 +483,7 @@ const fetchAndRenderReadme = async (path, markdownContent = '') => {
       }
 
       readmeContent.value = html;
-      emit('loaded', { status: 'ok' });
+      emit('loaded', {status: 'ok'});
       emit('hasContent', true);
       isLoading.value = false;
       return;
@@ -486,12 +493,12 @@ const fetchAndRenderReadme = async (path, markdownContent = '') => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 6000);
       try {
-        const response = await fetch(readmeUrl, { signal: controller.signal });
+        const response = await fetch(readmeUrl, {signal: controller.signal});
         if (response.ok) {
           markdown = await response.text();
         } else if (response.status === 404) {
           readmeContent.value = '';
-          emit('loaded', { status: '404' });
+          emit('loaded', {status: '404'});
           emit('hasContent', false);
           clearTimeout(timeoutId);
           isLoading.value = false;
@@ -556,11 +563,11 @@ const fetchAndRenderReadme = async (path, markdownContent = '') => {
     readmeContent.value = '';
     if (fetchError.name === 'AbortError') {
       loadError.value = t('readmeViewer.loadTimeout');
-      emit('loaded', { status: 'error', message: t('readmeViewer.loadTimeout') });
+      emit('loaded', {status: 'error', message: t('readmeViewer.loadTimeout')});
       emit('error', t('readmeViewer.loadTimeout'));
     } else {
       loadError.value = t('readmeViewer.loadFailed');
-      emit('loaded', { status: 'error', message: t('readmeViewer.loadFailed') });
+      emit('loaded', {status: 'error', message: t('readmeViewer.loadFailed')});
       emit('error', t('readmeViewer.loadFailed'));
     }
     emit('hasContent', false);
@@ -577,18 +584,18 @@ const fetchAndRenderReadme = async (path, markdownContent = '') => {
   });
   markdown = processFootnotes(markdown);
   readmeContent.value = md.render(markdown);
-  emit('loaded', { status: 'ok' });
+  emit('loaded', {status: 'ok'});
   emit('hasContent', true);
   isLoading.value = false;
 };
 
 // 监听路径变化
 watch(
-  () => [props.path, props.markdownContent],
-  ([newPath, newContent]) => {
-    fetchAndRenderReadme(newPath, newContent);
-  },
-  { immediate: true }
+    () => [props.path, props.markdownContent],
+    ([newPath, newContent]) => {
+      fetchAndRenderReadme(newPath, newContent);
+    },
+    {immediate: true}
 );
 </script>
 
