@@ -95,6 +95,7 @@ const initMermaid = async () => {
 
   if (mermaidObserver.value) {
     mermaidObserver.value.disconnect();
+    mermaidObserver.value = null;
   }
   await nextTick();
 
