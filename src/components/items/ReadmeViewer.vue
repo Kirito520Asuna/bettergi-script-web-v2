@@ -7,13 +7,15 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue';
+import {ref, watch, computed} from 'vue';
 import MarkdownIt from 'markdown-it';
 import markdownItAnchor from 'markdown-it-anchor';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github.css';
 import { getWebPath, getRepoPath, getMirrorPath, getMirror } from '@/utils/basePaths.js';
 import { useI18n } from 'vue-i18n';
+import { onMounted, onUnmounted, nextTick } from 'vue';
+import mermaid from 'mermaid';
 const { t } = useI18n();
 
 const props = defineProps({
@@ -58,6 +60,11 @@ const md = new MarkdownIt({
   linkify: false,
   typographer: true,
   highlight: function (str, lang) {
+    // 特殊处理 mermaid：不进行代码高亮，直接返回原始内容
+    if (lang && lang.toLowerCase() === 'mermaid') {
+      // 直接返回 mermaid 需要的结构，不用 <pre><code>
+      return `<div class="mermaid">${str.trim()}</div>`;
+    }
     if (lang && hljs.getLanguage(lang)) {
       try {
         return '<pre class="hljs"><code>' +
@@ -70,6 +77,86 @@ const md = new MarkdownIt({
 }).use(markdownItAnchor, {
   level: [1, 2, 3, 4, 5, 6]
 });
+
+// 全局只有一个 observer
+let mermaidObserver = null;
+
+const initMermaid = async () => {
+  // 初始化 mermaid 配置
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default',
+    securityLevel: 'loose',
+    flowchart: { useMaxWidth: true },
+    sequence: { useMaxWidth: true },
+  });
+
+  // 如果已有 observer，先断开
+  if (mermaidObserver) {
+    mermaidObserver.disconnect();
+  }
+
+  // 等待 .readme-content 真正存在
+  await nextTick();
+
+  const container = document.querySelector('.readme-viewer');
+  if (!container) return;
+
+  // 创建 observer 监听整个 viewer（因为 .readme-content 是 v-if，可能反复创建销毁）
+  mermaidObserver = new MutationObserver(async () => {
+    const mermaidEls = container.querySelectorAll('.mermaid:not([data-processed])');
+    if (mermaidEls.length > 0) {
+      try {
+        await mermaid.run({
+          nodes: mermaidEls,
+        });
+        // 标记已处理，避免重复渲染
+        mermaidEls.forEach(el => el.setAttribute('data-processed', 'true'));
+      } catch (err) {
+        console.warn('Mermaid render error:', err);
+      }
+    }
+  });
+
+  mermaidObserver.observe(container, {
+    childList: true,
+    subtree: true,
+  });
+
+  // 立即尝试渲染一次（处理初始加载）
+  const initialEls = container.querySelectorAll('.mermaid:not([data-processed])');
+  if (initialEls.length > 0) {
+    try {
+      await mermaid.run({ nodes: initialEls });
+      initialEls.forEach(el => el.setAttribute('data-processed', 'true'));
+    } catch (err) {
+      console.warn('Mermaid initial render error:', err);
+    }
+  }
+};
+
+// 组件挂载时初始化
+onMounted(() => {
+  nextTick(() => {
+    initMermaid();
+  });
+});
+
+// 监听内容变化 → 重新初始化（因为 v-html 会完全替换内容）
+watch(readmeContent, () => {
+  nextTick(() => {
+    initMermaid();
+  });
+});
+
+// 组件销毁时清理 observer
+onUnmounted(() => {
+  if (mermaidObserver) {
+    mermaidObserver.disconnect();
+    mermaidObserver = null;
+  }
+});
+
 
 // 脚注处理
 function processFootnotes(rawMarkdown) {
@@ -711,5 +798,18 @@ watch(
   margin: 0;
   font-size: 14px;
   line-height: 1.5;
+}
+
+.readme-content :deep(.mermaid) {
+  margin: 2em 0;
+  text-align: center;
+  overflow-x: auto;
+  line-height: 0; /* 防止上下间距异常 */
+}
+
+.readme-content :deep(.mermaid svg) {
+  max-width: 100%;
+  height: auto;
+  background: var(--bg-desc); /* 可选：与代码块背景一致 */
 }
 </style>
