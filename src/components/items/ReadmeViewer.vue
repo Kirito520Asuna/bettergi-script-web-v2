@@ -64,9 +64,7 @@ const md = new MarkdownIt({
   linkify: false,
   typographer: true,
   highlight: function (str, lang) {
-    // 特殊处理 mermaid：不进行代码高亮，直接返回原始内容
     if (lang && lang.toLowerCase() === 'mermaid') {
-      // 使用 escapeHtml 防止 XSS，mermaid.run() 会正确解析
       return `<div class="mermaid">${md.utils.escapeHtml(str.trim())}</div>`;
     }
     if (lang && hljs.getLanguage(lang)) {
@@ -83,7 +81,6 @@ const md = new MarkdownIt({
   level: [1, 2, 3, 4, 5, 6]
 });
 
-// 组件实例级别的 observer
 const mermaidObserver = ref(null);
 const initMermaid = async () => {
   // 初始化 mermaid 配置
@@ -96,14 +93,9 @@ const initMermaid = async () => {
     sequence: {useMaxWidth: true},
   });
 
-  // // 如果已有 observer，先断开
-  // if (mermaidObserver) {
-  //   mermaidObserver.disconnect();
-  // }
   if (mermaidObserver.value) {
     mermaidObserver.value.disconnect();
   }
-  // 等待 .readme-content 真正存在
   await nextTick();
 
   const container = document.querySelector('.readme-viewer');
@@ -158,9 +150,9 @@ watch(readmeContent, () => {
 
 // 组件销毁时清理 observer
 onUnmounted(() => {
-  if (mermaidObserver) {
-    mermaidObserver.disconnect();
-    mermaidObserver = null;
+  if (mermaidObserver.value) {
+    mermaidObserver.value.disconnect();
+    mermaidObserver.value = null;
   }
 });
 
@@ -807,51 +799,45 @@ watch(
   line-height: 1.5;
 }
 
-/* Mermaid 深色模式文字清晰优化 - 无发光版 */
 .readme-content :deep(.mermaid svg) {
   background: transparent !important;
 }
 
-/* 所有文字统一为纯白并加粗 */
+
 .readme-content :deep(.mermaid text),
 .readme-content :deep(.mermaid tspan) {
-  fill: #ffffff !important;           /* 纯白 */
-  font-weight: 600 !important;         /* 加粗，提高辨识度 */
+  fill: #ffffff !important;
+  font-weight: 600 !important;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif !important;
 }
 
-/* 给文字加一个细黑边阴影，提升在复杂背景上的分离感 */
 .readme-content :deep(.mermaid text),
 .readme-content :deep(.mermaid tspan) {
-  paint-order: stroke fill;           /* 确保描边在填充色下面 */
-  stroke: #000000 !important;         /* 黑色描边 */
-  stroke-width: 2px !important;       /* 描边粗细，2px 最清晰 */
+  paint-order: stroke fill;
+  stroke: #000000 !important;
+  stroke-width: 2px !important;
   stroke-linejoin: round !important;
 }
 
-/* 特别强化消息箭头上的文字（最容易看不清） */
 .readme-content :deep(.mermaid .messageText) {
-  font-weight: 700 !important;         /* 更粗 */
-  stroke-width: 3px !important;        /* 稍粗描边 */
+  font-weight: 700 !important;
+  stroke-width: 3px !important;
 }
 
-/* loop / alt / opt 等逻辑框的标题文字 */
 .readme-content :deep(.mermaid .loopText tspan),
 .readme-content :deep(.mermaid .altText tspan),
 .readme-content :deep(.mermaid .noteText) {
-  fill: #ffd700 !important;           /* 金黄色，突出逻辑结构 */
+  fill: #ffd700 !important;
   font-weight: bold !important;
   stroke: #000000 !important;
   stroke-width: 2.5px !important;
 }
 
-/* 参与者（actor）名称更清晰 */
 .readme-content :deep(.mermaid .actor text) {
   font-weight: 700 !important;
   stroke-width: 3px !important;
 }
 
-/* 可选：参与者矩形边框加亮 */
 .readme-content :deep(.mermaid .actor) {
   stroke: #ffffff !important;
   stroke-width: 2px !important;
