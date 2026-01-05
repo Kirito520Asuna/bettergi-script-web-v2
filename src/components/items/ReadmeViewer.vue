@@ -807,16 +807,53 @@ watch(
   line-height: 1.5;
 }
 
-.readme-content :deep(.mermaid) {
-  margin: 2em 0;
-  text-align: center;
-  overflow-x: auto;
-  line-height: 0; /* 防止上下间距异常 */
+/* Mermaid 深色模式文字清晰优化 - 无发光版 */
+.readme-content :deep(.mermaid svg) {
+  background: transparent !important;
 }
 
-.readme-content :deep(.mermaid svg) {
-  max-width: 100%;
-  height: auto;
-  background: var(--bg-desc); /* 可选：与代码块背景一致 */
+/* 所有文字统一为纯白并加粗 */
+.readme-content :deep(.mermaid text),
+.readme-content :deep(.mermaid tspan) {
+  fill: #ffffff !important;           /* 纯白 */
+  font-weight: 600 !important;         /* 加粗，提高辨识度 */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif !important;
+}
+
+/* 给文字加一个细黑边阴影，提升在复杂背景上的分离感 */
+.readme-content :deep(.mermaid text),
+.readme-content :deep(.mermaid tspan) {
+  paint-order: stroke fill;           /* 确保描边在填充色下面 */
+  stroke: #000000 !important;         /* 黑色描边 */
+  stroke-width: 2px !important;       /* 描边粗细，2px 最清晰 */
+  stroke-linejoin: round !important;
+}
+
+/* 特别强化消息箭头上的文字（最容易看不清） */
+.readme-content :deep(.mermaid .messageText) {
+  font-weight: 700 !important;         /* 更粗 */
+  stroke-width: 3px !important;        /* 稍粗描边 */
+}
+
+/* loop / alt / opt 等逻辑框的标题文字 */
+.readme-content :deep(.mermaid .loopText tspan),
+.readme-content :deep(.mermaid .altText tspan),
+.readme-content :deep(.mermaid .noteText) {
+  fill: #ffd700 !important;           /* 金黄色，突出逻辑结构 */
+  font-weight: bold !important;
+  stroke: #000000 !important;
+  stroke-width: 2.5px !important;
+}
+
+/* 参与者（actor）名称更清晰 */
+.readme-content :deep(.mermaid .actor text) {
+  font-weight: 700 !important;
+  stroke-width: 3px !important;
+}
+
+/* 可选：参与者矩形边框加亮 */
+.readme-content :deep(.mermaid .actor) {
+  stroke: #ffffff !important;
+  stroke-width: 2px !important;
 }
 </style>
